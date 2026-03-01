@@ -1,41 +1,61 @@
 import os
+import logging
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+from telegram.ext import (
+    Application,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
+
+logging.basicConfig(level=logging.INFO)
 
 TOKEN = os.getenv("TOKEN")
+ADMIN_ID = 123456789  # <-- put your real Telegram ID
 
-ADMIN_ID = 1430487486  # replace with your Telegram ID
+if not TOKEN:
+    raise RuntimeError("TOKEN not set in environment variables!")
 
-# Auto reply in private
-async def auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message:
+        return
+
+    # Auto reply in private chat
     if update.message.chat.type == "private":
-        await update.message.reply_text("Thanks for messaging me! I will reply soon.")
+        await update.message.reply_text("Thanks for messaging me!")
 
-# Welcome new members
+    # Forward everything to admin
+    try:
+        await context.bot.forward_message(
+            chat_id=ADMIN_ID,
+            from_chat_id=update.effective_chat.id,
+            message_id=update.message.message_id,
+        )
+    except Exception as e:
+        logging.error(f"Forward error: {e}")
+
+
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    for member in update.message.new_chat_members:
-        await update.message.reply_text(f"Welcome {member.first_name} 🎉")
+    if update.message and update.message.new_chat_members:
+        for member in update.message.new_chat_members:
+            await update.message.reply_text(f"Welcome {member.first_name} 🎉")
+            try:
+                await context.bot.send_message(
+                    chat_id=member.id,
+                    text="Welcome to the group! Please read the rules."
+                )
+            except Exception as e:
+                logging.error(f"Private welcome error: {e}")
 
-        try:
-            await context.bot.send_message(
-                chat_id=member.id,
-                text="Welcome to our group! Please read the rules."
-            )
-        except:
-            pass
 
-# Forward everything to admin
-async def forward_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.forward_message(
-        chat_id=ADMIN_ID,
-        from_chat_id=update.effective_chat.id,
-        message_id=update.message.message_id
-    )
+def main():
+    app = Application.builder().token(TOKEN).build()
 
-app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(MessageHandler(filters.ALL, handle_message))
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 
-app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), auto_reply))
-app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
-app.add_handler(MessageHandler(filters.ALL, forward_to_admin))
+    app.run_polling()
 
-app.run_polling()
+
+if __name__ == "__main__":
+    main()
