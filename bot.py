@@ -4,7 +4,7 @@ from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTyp
 
 TOKEN = os.getenv("TOKEN")
 
-ADMIN_ID = 123456789  # replace with your Telegram ID
+ADMIN_ID = 1430487486  # replace with your Telegram ID
 
 # Auto reply in private
 async def auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
